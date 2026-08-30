@@ -1,0 +1,155 @@
+# Render Blueprint for the Personal Tracker microservices.
+#
+# Architecture on Render:
+#   - ONE free Postgres instance, hosting THREE logical databases
+#     (auth_db, expense_db, habit_db) - see render-deploy-setup.sql.
+#     This keeps true database-per-service separation while staying
+#     on a single free Postgres instance.
+#   - auth-service, expense-service, habit-service are PRIVATE services
+#     (type: pserv) - not reachable from the public internet at all,
+#     only from other services in this workspace. This replaces the
+#     "everything goes through the gateway" rule that Eureka + the
+#     gateway's own routing used to enforce.
+#   - api-gateway is the only PUBLIC service (type: web). It's the one
+#     URL you give out.
+#
+# Free-tier notes:
+#   - Free web/private services spin down after 15 min idle; first
+#     request after that takes 30-60s (cold start). Fine to start with,
+#     upgrade the gateway to a paid Starter plan ($7/mo) first if that
+#     matters for public users - it's the one people actually hit.
+#   - Free Postgres expires after 30 days unless upgraded.
+#
+# Deploy: push this repo to GitHub, then in the Render Dashboard choose
+# New -> Blueprint and point it at the repo. Render will prompt you for
+# any envVars marked `sync: false` (put your real JWT secret there -
+# never commit it).
+
+databases:
+  - name: tally-postgres
+    databaseName: auth_db
+    plan: free
+
+services:
+  - type: pserv
+    name: auth-service
+    runtime: docker
+    dockerfilePath: ./auth-service/Dockerfile
+    dockerContext: .
+    plan: free
+    envVars:
+      - key: PORT
+        value: 8081
+      - key: DB_HOST
+        fromDatabase:
+          name: tally-postgres
+          property: host
+      - key: DB_PORT
+        fromDatabase:
+          name: tally-postgres
+          property: port
+      - key: DB_USERNAME
+        fromDatabase:
+          name: tally-postgres
+          property: user
+      - key: DB_PASSWORD
+        fromDatabase:
+          name: tally-postgres
+          property: password
+      - key: DB_NAME
+        value: auth_db
+      - key: JWT_SECRET
+        sync: false
+
+  - type: pserv
+    name: expense-service
+    runtime: docker
+    dockerfilePath: ./expense-service/Dockerfile
+    dockerContext: .
+    plan: free
+    envVars:
+      - key: PORT
+        value: 8082
+      - key: DB_HOST
+        fromDatabase:
+          name: tally-postgres
+          property: host
+      - key: DB_PORT
+        fromDatabase:
+          name: tally-postgres
+          property: port
+      - key: DB_USERNAME
+        fromDatabase:
+          name: tally-postgres
+          property: user
+      - key: DB_PASSWORD
+        fromDatabase:
+          name: tally-postgres
+          property: password
+      - key: DB_NAME
+        value: expense_db
+      - key: JWT_SECRET
+        sync: false
+
+  - type: pserv
+    name: habit-service
+    runtime: docker
+    dockerfilePath: ./habit-service/Dockerfile
+    dockerContext: .
+    plan: free
+    envVars:
+      - key: PORT
+        value: 8083
+      - key: DB_HOST
+        fromDatabase:
+          name: tally-postgres
+          property: host
+      - key: DB_PORT
+        fromDatabase:
+          name: tally-postgres
+          property: port
+      - key: DB_USERNAME
+        fromDatabase:
+          name: tally-postgres
+          property: user
+      - key: DB_PASSWORD
+        fromDatabase:
+          name: tally-postgres
+          property: password
+      - key: DB_NAME
+        value: habit_db
+      - key: JWT_SECRET
+        sync: false
+
+  - type: web
+    name: api-gateway
+    runtime: docker
+    dockerfilePath: ./api-gateway/Dockerfile
+    dockerContext: .
+    plan: free
+    envVars:
+      - key: PORT
+        value: 8080
+      - key: AUTH_SERVICE_URL
+        fromService:
+          name: auth-service
+          type: pserv
+          property: hostport
+      - key: EXPENSE_SERVICE_URL
+        fromService:
+          name: expense-service
+          type: pserv
+          property: hostport
+      - key: HABIT_SERVICE_URL
+        fromService:
+          name: habit-service
+          type: pserv
+          property: hostport
+      - key: JWT_SECRET
+        sync: false
+      - key: ALLOWED_ORIGINS
+        value: "*"
+      - key: RATE_LIMIT_RPM
+        value: 60
+      - key: AUTH_RATE_LIMIT_RPM
+        value: 10
