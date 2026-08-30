@@ -1,0 +1,6 @@
+tally-frontend/
+**/target/
+**/*.log
+.git/
+.idea/
+*.iml
