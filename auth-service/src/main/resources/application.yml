@@ -1,0 +1,30 @@
+server:
+  port: ${PORT:8081}
+
+spring:
+  application:
+    name: auth-service
+  datasource:
+    # DB_HOST/PORT/NAME/USERNAME/PASSWORD are set from Render's Postgres
+    # connection fields in render.yaml. Locally, these defaults point at
+    # the docker-compose Postgres.
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:auth_db}
+    username: ${DB_USERNAME:tracker}
+    password: ${DB_PASSWORD:tracker}
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: false
+    properties:
+      hibernate:
+        format_sql: true
+
+jwt:
+  secret: ${JWT_SECRET:this-is-a-dev-only-secret-key-change-it-before-prod-32bytes}
+  expiration-ms: 86400000
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
