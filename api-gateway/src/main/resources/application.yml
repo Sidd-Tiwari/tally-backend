@@ -1,0 +1,50 @@
+server:
+  port: ${PORT:8080}
+
+spring:
+  application:
+    name: api-gateway
+  cloud:
+    gateway:
+      routes:
+        - id: auth-service
+          # AUTH_SERVICE_URL etc. are set to Render's "hostport" property
+          # (host:port, no scheme) in render.yaml - we prepend http:// here
+          # since Render Blueprints can't do string interpolation. Locally,
+          # this resolves to http://localhost:8081.
+          uri: http://${AUTH_SERVICE_URL:localhost:8081}
+          predicates:
+            - Path=/api/auth/**
+
+        - id: expense-service
+          uri: http://${EXPENSE_SERVICE_URL:localhost:8082}
+          predicates:
+            - Path=/api/expenses/**,/api/categories/**
+
+        - id: habit-service
+          uri: http://${HABIT_SERVICE_URL:localhost:8083}
+          predicates:
+            - Path=/api/habits/**,/api/tasks/**
+
+# Comma-separated list of allowed origins for public API access.
+# "*" is convenient while unknown third-party developers are testing
+# against the API, but tighten it to real domains once you can.
+cors:
+  allowed-origins: ${ALLOWED_ORIGINS:*}
+
+# Requests per minute allowed per client (by API key/user, falling back
+# to IP for unauthenticated requests). In-memory - resets on restart and
+# isn't shared across instances. Fine for one free-tier instance; swap
+# in Redis-backed limiting if you ever scale the gateway horizontally.
+rate-limit:
+  requests-per-minute: ${RATE_LIMIT_RPM:60}
+  auth-requests-per-minute: ${AUTH_RATE_LIMIT_RPM:10}
+
+jwt:
+  secret: ${JWT_SECRET:this-is-a-dev-only-secret-key-change-it-before-prod-32bytes}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
